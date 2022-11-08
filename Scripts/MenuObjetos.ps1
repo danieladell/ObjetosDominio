@@ -20,23 +20,18 @@ function añadirUsuarios {
         Import-Module ActiveDirectory
     }
 
-    $usuariosCsv = Read-Host "Introduce el fichero csv de los usuarios:"
+    $fileUsersCsv = Read-Host "Introduce el fichero csv de los usuarios:"
 
-    $fichero = import-csv -Path $usuariosCsv -Delimiter : 
+    $fichero = import-csv -Path $fileUsersCsv -Delimiter : 
 					     
     foreach($linea in $fichero) {
-
-	    $containerPath = $linea.ContainerPath + "," + $domainComponent 
-	    $passAccount = ConvertTo-SecureString $linea.DNI -AsPlainText -force
-	    $nameShort = $linea.Name + '.' + $linea.FirstName
+	    $containerPath = $linea.ContainerPath + "," + $dc 
+	    $passAccount = ConvertTo-SecureString ($linea.DNI + "@altamira-2") -AsPlainText -force
+	    $nameShort = $linea.Name.Substring(0,1) + $linea.FirstName + $linea.Lastname.Substring(0,1)
 	    $Surnames = $linea.FirstName + ' ' + $linea.LastName
 	    $nameLarge = $linea.Name + ' ' + $linea.FirstName + ' ' + $linea.LastName
-	    $email = $nameShort + "@" + $dominio + "." + $sufijoDominio
+	    $email = $nameShort + "@" + $subDominio + "." + $dominio + "." + "$sufijo"
 
-	    if (Get-ADUser -filter { name -eq $nameShort }) {
-		    $nameShort = $linea.Name + '.' + $linea.FirstName + $linea.LastName
-	    }
-	   
 	    [boolean]$Habilitado = $true
     	If($linea.Enabled -Match 'false') { 
             $Habilitado = $false
@@ -45,23 +40,7 @@ function añadirUsuarios {
    	    $ExpirationAccount = $linea.ExpirationAccount
     	$timeExp = (get-date).AddDays($ExpirationAccount)
 
-	    New-ADUser 
-            -SamAccountName $nameShort 
-            -UserPrincipalName $nameShort 
-            -Name $nameShort `
-		    -Surname $Surnames 
-            -DisplayName $nameLarge 
-            -GivenName $linea.Name 
-            -LogonWorkstations:$linea.Computer `
-		    -Description "Cuenta de $nameLarge" 
-            -EmailAddress $email `
-		    -AccountPassword $passAccount 
-            -Enabled $Habilitado `
-		    -CannotChangePassword $false 
-            -ChangePasswordAtLogon $true `
-		    -PasswordNotRequired $false 
-            -Path $containerPath 
-            -AccountExpirationDate $timeExp
+	    New-ADUser -SamAccountName $nameShort -UserPrincipalName $nameShort -Name $nameShort -Surname $Surnames -DisplayName $nameLarge -GivenName $linea.Name -LogonWorkstations:$linea.Computer -Description "Cuenta de $nameLarge" -EmailAddress $email -AccountPassword $passAccount -Enabled $Habilitado -CannotChangePassword $false -ChangePasswordAtLogon $true -PasswordNotRequired $false -Path $containerPath -AccountExpirationDate $timeExp
  
 	    $cnGrpAccount = "Cn=" + $linea.Group + "," + $containerPath
 	    Add-ADGroupMember -Identity $cnGrpAccount -Members $nameShort
@@ -74,42 +53,23 @@ function añadirGrupos {
     $fichero = import-csv -Path $gruposCsv -delimiter :
 
     foreach($linea in $fichero) {
-	    $pathObject=$linea.Path+","+$domainComponent
-
-	    if ( !(Get-ADGroup -Filter { name -eq $linea.Name }) ) {
-		    New-ADGroup 
-            -Name:$linea.Name 
-            -Description:$linea.Description `
-		    -GroupCategory:$linea.Category `
-		    -GroupScope:$linea.Scope  `
-		    -Path:$pathObject
-	    }else { 
-            Write-Host "El grupo $line.Name ya existe en el sistema"
-        }
+	    $pathObject=$linea.Path+","+$dc
+            Write-Host "Has creado el grupo: " + $linea.Name
+		    New-ADGroup -Name:$linea.Name -Description:$linea.Description -GroupCategory:$linea.Category -GroupScope:$linea.Scope  -Path:$pathObject
     }
 }
 
 function añadirUO {
-    $ficheroCsvUO=Read-Host "Introduce el fichero csv de UO's:"
-    $fichero = import-csv -Path $ficheroCsvUO -delimiter :
-    foreach($line in $fichero) {
 
-	if (!($line.Path -notmatch '')) { 
-        $pathObjectUO = $line.Path + "," + $domainComponent
-    }else {
-        $pathObjectUO = $domainComponent
-    }
+    $fichero_csv=Read-Host "Introduce el fichero csv de las UO:"
 
-	if ( !(Get-ADOrganizationalUnit -Filter { name -eq $line.Name }) ) {
-        	New-ADOrganizationalUnit 
-                -Description:$line.Description 
-                -Name:$line.Name `
-		        -Path:$pathObjectUO 
-                -ProtectedFromAccidentalDeletion:$true
-    }else { 
-        Write-Host "La unidad organizativa $line.Name ya existe en el sistema"
+    $fichero_csv_importado = import-csv -Path $fichero_csv -Delimiter :
+     			     
+    foreach($linea in $fichero_csv_importado) {
+        Write-Host "Se ha creado la UO: "$linea.Name
+        New-ADOrganizationalUnit -Name $linea.Name
+
     }
-}
 
 }
 
